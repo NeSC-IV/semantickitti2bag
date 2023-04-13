@@ -1,3 +1,10 @@
+# semantickitti转换为rosbag/rosbag2
+* 230413   
+运行方式：python semantic_kitti2bag2.py  
+测试环境：python3.8，ros2 humble，ubuntu20.04(foxy缺少rosbag2_py)
+
+
+*******************
 # semantickitti2bag
 
 "semantickitti2bag" contains helpful python programs to convert SemanticKITTI dataset to rosbag file.

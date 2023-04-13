@@ -1,26 +1,33 @@
+from rclpy.clock import Clock
+from rclpy.duration import Duration
+from rclpy.serialization import serialize_message
+from example_interfaces.msg import Int32
+import rclpy
+from rclpy.time import Time
+
+import rosbag2_py
 import sys
 sys.dont_write_bytecode = True
 import math
 import utils #import utils.py
 from numpy.linalg import inv
-import tf
-import tf2_ros
+import tf_transformations
 import os
 import cv2
-from cv_bridge import CvBridge
-import rospy
-import rosbag
+# from cv_bridge import CvBridge
 import progressbar
 from tf2_msgs.msg import TFMessage
 from datetime import datetime
 from std_msgs.msg import Header
 from sensor_msgs.msg import CameraInfo, Imu, PointField, NavSatFix
-import sensor_msgs.point_cloud2 as pcl2
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs_py import point_cloud2 as pcl2 # point_cloud2.create_cloud() 函数是sensor_msgs.msg.PointCloud2消息的一个帮助函数，它将一系列点的x、y、z坐标和其他属性打包到点云消息中。
 from geometry_msgs.msg import TransformStamped, TwistStamped, Transform, PoseStamped
 from nav_msgs.msg import Odometry
 import numpy as np
 import argparse
 import glob
+
 
 
 class SemanticKitti_Raw:
@@ -100,9 +107,15 @@ def inv_t(transform):
 
     return transform_inv
 
-def save_velo_data_with_label(bag, kitti, velo_frame_id, velo_topic):
+def save_velo_data_with_label(writer, kitti, velo_frame_id, velo_topic):
     print("Exporting Velodyne and Label data")
+    topic_info = rosbag2_py._storage.TopicMetadata(
+        name=velo_topic,
+        type='sensor_msgs/msgs/PointCloud2',
+        serialization_format='cdr') # 默认二进制序列化格式
     
+    writer.create_topic(topic_info)
+
     velo_data_dir = os.path.join(kitti.data_path, 'velodyne')
     velo_filenames = sorted(os.listdir(velo_data_dir))
 
@@ -114,7 +127,7 @@ def save_velo_data_with_label(bag, kitti, velo_frame_id, velo_topic):
     iterable = zip(datatimes, velo_filenames, label_filenames)
     bar = progressbar.ProgressBar()
 
-    for dt, veloname, labelname in bar(iterable):
+    for dt, veloname, labelname in bar(list(iterable)):
         if dt is None:
             continue
 
@@ -134,21 +147,31 @@ def save_velo_data_with_label(bag, kitti, velo_frame_id, velo_topic):
 
         header = Header()
         header.frame_id = velo_frame_id
-        header.stamp = rospy.Time.from_sec(float(dt))
+        time = Time(seconds = float(dt)) # Clock().now()
+        header.stamp = time.to_msg()
 
-        fields =[PointField('x',  0, PointField.FLOAT32, 1),
-                 PointField('y',  4, PointField.FLOAT32, 1),
-                 PointField('z',  8, PointField.FLOAT32, 1),
-                 PointField('intensity', 12, PointField.FLOAT32, 1),
-                 PointField('rgb', 16, PointField.UINT32, 1),
-                 PointField('label', 20, PointField.UINT16, 1)]
+        fields =[PointField(name='x',  offset=0, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='y',  offset=4, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='z',  offset=8, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='intensity',  offset=12, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='rgb',  offset=16, datatype=PointField.UINT32, count = 1),
+                PointField(name='label',  offset=20, datatype=PointField.UINT16, count = 1)]
 
         pcl_msg = pcl2.create_cloud(header, fields, scan)
-        bag.write(velo_topic, pcl_msg, t=pcl_msg.header.stamp)
+        writer.write(
+            velo_topic,
+            serialize_message(pcl_msg),
+            time.nanoseconds)
+        # bag.write(velo_topic, pcl_msg, t=pcl_msg.header.stamp)
 
-def save_velo_data(bag, kitti, velo_frame_id, velo_topic):
+def save_velo_data(writer, kitti, velo_frame_id, velo_topic):
     print("Exporting Velodyne data")
+    topic_info = rosbag2_py._storage.TopicMetadata(
+        name=velo_topic,
+        type='sensor_msgs/msgs/PointCloud2',
+        serialization_format='cdr') # 默认二进制序列化格式
     
+    writer.create_topic(topic_info)
     velo_data_dir = os.path.join(kitti.data_path, 'velodyne')
     velo_filenames = sorted(os.listdir(velo_data_dir))
 
@@ -157,7 +180,7 @@ def save_velo_data(bag, kitti, velo_frame_id, velo_topic):
     iterable = zip(datatimes, velo_filenames)
     bar = progressbar.ProgressBar()
 
-    for dt, veloname in bar(iterable):
+    for dt, veloname in bar(list(iterable)):
         if dt is None:
             continue
 
@@ -167,15 +190,20 @@ def save_velo_data(bag, kitti, velo_frame_id, velo_topic):
 
         header = Header()
         header.frame_id = velo_frame_id
-        header.stamp = rospy.Time.from_sec(float(dt))
+        time = Time(seconds = float(dt)) # Clock().now()
+        header.stamp = time.to_msg()
 
-        fields =[PointField('x',  0, PointField.FLOAT32, 1),
-                 PointField('y',  4, PointField.FLOAT32, 1),
-                 PointField('z',  8, PointField.FLOAT32, 1),
-                 PointField('intensity', 12, PointField.FLOAT32, 1)]
+        fields =[PointField(name='x',  offset=0, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='y',  offset=4, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='z',  offset=8, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='intensity',  offset=12, datatype=PointField.FLOAT32, count = 1)]
 
         pcl_msg = pcl2.create_cloud(header, fields, veloscan)
-        bag.write(velo_topic, pcl_msg, t=pcl_msg.header.stamp)
+        writer.write(
+            velo_topic,
+            serialize_message(pcl_msg),
+            time.nanoseconds)
+        # bag.write(velo_topic, pcl_msg, t=pcl_msg.header.stamp)
 
 def read_calib_file(filename):
     """ read calibration file 
@@ -247,10 +275,9 @@ def read_poses_file(filename, calibration):
     return poses
 
 def get_static_transform(from_frame_id, to_frame_id, transform):
-    t = transform[0:3, 3]
-    q = tf.transformations.quaternion_from_matrix(transform) #Create quaternion from 4*4 homogenerous transformation matrix
-    
-    q_n = q / np.linalg.norm(q)
+    t = transform[0:3, 3] #Get translation vector
+    q = tf_transformations.quaternion_from_matrix(transform) #Create quaternion from 4*4 homogenerous transformation matrix
+    q_n = q / np.linalg.norm(q) #(x,y,z,w)
 
     tf_msg = TransformStamped()
     tf_msg.header.frame_id = from_frame_id #master
@@ -265,8 +292,16 @@ def get_static_transform(from_frame_id, to_frame_id, transform):
 
     return tf_msg
 
-def save_static_transforms(bag, transforms, kitti):
+def save_static_transforms(writer, transforms, kitti):
     print("Get static transform")
+    # 将tf message通过writer写入rosbag2
+
+    topic_info = rosbag2_py._storage.TopicMetadata(
+        name='/tf_static',
+        type='tf2_msgs/msgs/TFMessage',
+        serialization_format='cdr') # 默认二进制序列化格式
+    
+    writer.create_topic(topic_info)
     tfm = TFMessage()
     datatimes = kitti.timestamps
 
@@ -277,34 +312,45 @@ def save_static_transforms(bag, transforms, kitti):
 
     for dt in datatimes:
         #time = rospy.Time.from_sec(float(dt.strftime("%s.%f")))
-        time = rospy.Time.from_sec(float(dt))
+        time = Time(seconds = float(dt)) # Clock().now()
         #print(dt)
         #print(type(time))
         for i in range(len(tfm.transforms)):
-            tfm.transforms[i].header.stamp = time
-        bag.write('/tf_static', tfm, t=time)
+            tfm.transforms[i].header.stamp = time.to_msg()
+            # tfm.transforms[i].header.stamp = time
+        # bag.write('/tf_static', tfm, t=time)
+        writer.write(
+            '/tf_static',
+            serialize_message(tfm),
+            time.nanoseconds)
 
-def save_dynamic_transforms(bag, kitti, poses, master_frame_id, slave_frame_id,initial_time):
+
+def save_dynamic_transforms(writer, kitti, poses, master_frame_id, slave_frame_id,initial_time):
     print("Exporting time dependent transformations")
+    topic_info = rosbag2_py._storage.TopicMetadata(
+        name='/tf',
+        type='tf2_msgs/msgs/TFMessage',
+        serialization_format='cdr') # 默认二进制序列化格式
+    
+    writer.create_topic(topic_info)
 
     datatimes = kitti.timestamps
-
     iterable = zip(datatimes, poses)
     bar = progressbar.ProgressBar()
-
-    for dt, pose in bar(iterable):
+    for dt, pose in bar(list(iterable)):
         tf_dy_msg = TFMessage()
         tf_dy_transform = TransformStamped()
         
         #tf_dy_transform.header.stamp = rospy.Time.from_sec(float(dt.strftime("%s.%f")))
-        tf_dy_transform.header.stamp = rospy.Time.from_sec(float(dt))
+        time = Time(seconds = float(dt))
+        tf_dy_transform.header.stamp = time.to_msg()
         #print(tf_dy_transform.header.stamp)
 
         tf_dy_transform.header.frame_id = master_frame_id
         tf_dy_transform.child_frame_id = slave_frame_id
 
         t = pose[0:3, 3]
-        q = tf.transformations.quaternion_from_matrix(pose)
+        q = tf_transformations.quaternion_from_matrix(pose)
 
         dy_tf = Transform()
 
@@ -321,8 +367,10 @@ def save_dynamic_transforms(bag, kitti, poses, master_frame_id, slave_frame_id,i
 
         tf_dy_transform.transform = dy_tf
         tf_dy_msg.transforms.append(tf_dy_transform)
-
-        bag.write('/tf', tf_dy_msg, t=tf_dy_msg.transforms[0].header.stamp)
+        writer.write(
+            '/tf',
+            serialize_message(tf_dy_msg),
+            time.nanoseconds)
 
 # def save_camera_data(bag, kitti, calibration, bridge, camera, camera_frame_id, topic, initial_time):
 #     print("Exporting {} image data".format(topic))
@@ -361,9 +409,20 @@ def save_dynamic_transforms(bag, kitti, poses, master_frame_id, slave_frame_id,i
 #         #bag.write(topic + '/camera_info', calib, t=calib.header.stamp)
 
 
-def save_pose_msg(bag, kitti, poses, master_frame_id, slave_frame_id, topic, initial_time=None):
+def save_pose_msg(writer, kitti, poses, master_frame_id, slave_frame_id, topic, initial_time=None):
     print("Exporting pose msg")
-
+    topic_info = rosbag2_py._storage.TopicMetadata(
+        name='/odom_pose',
+        type='nav_msgs/msgs/Odometry',
+        serialization_format='cdr') # 默认二进制序列化格式
+    
+    writer.create_topic(topic_info)
+    topic_info2 = rosbag2_py._storage.TopicMetadata(
+        name=topic,
+        type='geometry_msgs/msgs/PoseStamped',
+        serialization_format='cdr') # 默认二进制序列化格式
+    
+    writer.create_topic(topic_info2)
     datatimes = kitti.timestamps
 
     iterable = zip(datatimes, poses)
@@ -373,13 +432,14 @@ def save_pose_msg(bag, kitti, poses, master_frame_id, slave_frame_id, topic, ini
     dt_1 = 0.00
     counter = 0
 
-    for dt, pose in bar(iterable):
+    for dt, pose in bar(list(iterable)):
         p = PoseStamped()
         p.header.frame_id = master_frame_id
-        p.header.stamp = rospy.Time.from_sec(float(dt))
+        time = Time(seconds = float(dt))
+        p.header.stamp = time.to_msg()
 
         t = pose[0:3, 3]
-        q = tf.transformations.quaternion_from_matrix(pose)
+        q = tf_transformations.quaternion_from_matrix(pose)
 
         p.pose.position.x = t[0]
         p.pose.position.y = t[1]
@@ -395,7 +455,11 @@ def save_pose_msg(bag, kitti, poses, master_frame_id, slave_frame_id, topic, ini
         if(counter == 0):
             p_t1 = p
 
-        bag.write(topic, p, t=p.header.stamp)
+        writer.write(
+            topic,
+            serialize_message(p),
+            time.nanoseconds)
+        # bag.write(topic, p, t=p.header.stamp)
 
         delta_t = (dt - dt_1)
         if(counter == 0):
@@ -430,24 +494,49 @@ def save_pose_msg(bag, kitti, poses, master_frame_id, slave_frame_id, topic, ini
         odom.twist.twist.angular.x = v_roll
         odom.twist.twist.angular.y = v_pitch
         odom.twist.twist.angular.z = v_yaw
-
-        bag.write('/odom_pose', odom, t=odom.header.stamp)
+        writer.write(
+            '/odom_pose',
+            serialize_message(odom),
+            time.nanoseconds)
+        # bag.write('/odom_pose', odom, t=odom.header.stamp)
         
         counter += 1
         p_t1 = p
         dt_1 = dt
 
-def run_semantickitti2bag():
+def main(args=None):
+    writer = rosbag2_py.SequentialWriter()
+    sequence_number = "00" # 00~21
+    storage_options = rosbag2_py._storage.StorageOptions(
+        uri="bags/semantickitti_sequence{}".format(sequence_number),
+        storage_id='sqlite3') 
+    converter_options = rosbag2_py._storage.ConverterOptions('', '')
+    writer.open(storage_options, converter_options)
 
-    parser = argparse.ArgumentParser(description='Convert SemanticKITTI dataset to rosbag file')
+    # topic_info = rosbag2_py._storage.TopicMetadata(
+    #     name='synthetic',
+    #     type='example_interfaces/msg/Int32',
+    #     serialization_format='cdr')
+    # writer.create_topic(topic_info)
+
+    # time_stamp = Clock().now()
+    # for ii in range(0, 100):
+    #     data = Int32()
+    #     data.data = ii
+    #     writer.write(
+    #         'synthetic',
+    #         serialize_message(data),
+    #         time_stamp.nanoseconds)
+    #     time_stamp += Duration(seconds=1)
+    # parser = argparse.ArgumentParser(description='Convert SemanticKITTI dataset to rosbag file')
 
 
-    parser.add_argument("-p","--dataset_path", help='Path to Semantickitti file')
-    parser.add_argument("-s","--sequence_number", help='Sequence number, must be written as 1 to 01')
-    args = parser.parse_args()
+    # parser.add_argument("-p","--dataset_path", help='Path to Semantickitti file')
+    # parser.add_argument("-s","--sequence_number", help='Sequence number, must be written as 1 to 01')
+    # args = parser.parse_args()
 
-    bridge = CvBridge()
-    compression = rosbag.Compression.NONE
+    # bridge = CvBridge()
+    # compression = rosbag.Compression.NONE
 
     #camera
 
@@ -458,20 +547,20 @@ def run_semantickitti2bag():
     #         (3, 'camera_color_right', '/semantickitti/camera_color_right')
     #     ]
     
-    if args.dataset_path == None:
-        print("Dataset path is not given.")
-        sys.exit(1)
-    elif args.sequence_number == None:
-        print("Sequence number is not given.")
-        sys.exit(1)
+    # if args.dataset_path == None:
+    #     print("Dataset path is not given.")
+    #     sys.exit(1)
+    # elif args.sequence_number == None:
+    #     print("Sequence number is not given.")
+    #     sys.exit(1)
 
     scanlabel_bool = 1
-    if int(args.sequence_number) > 10:
+    if int(sequence_number) > 10:
         scanlabel_bool = 0
         
-    bag = rosbag.Bag("semantickitti_sequence{}.bag".format(args.sequence_number), 'w', compression=compression)
+    # bag = rosbag.Bag("semantickitti_sequence{}.bag".format(args.sequence_number), 'w', compression=compression)
 
-    kitti = SemanticKitti_Raw(args.dataset_path, args.sequence_number, scanlabel_bool)
+    kitti = SemanticKitti_Raw("/media/oliver/Elements SE/dataset/KITTI", sequence_number, scanlabel_bool)
 
     if not os.path.exists(kitti.data_path):
         print('Path {} does not exists. Force-quiting....'.format(kitti.data_path))
@@ -526,29 +615,29 @@ def run_semantickitti2bag():
         ]
 
 
-        save_static_transforms(bag, transforms, kitti)
+        save_static_transforms(writer, transforms, kitti)
 
         #These poses are represented in world coordinate
         poses = read_poses_file(os.path.join(kitti.data_path,'poses.txt'), calibration)
         
-        ground_truth_file_name = "{}.txt".format(args.sequence_number)
+        ground_truth_file_name = "{}.txt".format(sequence_number)
         ground_truth = read_poses_file(os.path.join(kitti.data_path, ground_truth_file_name), calibration)
 
-        save_dynamic_transforms(bag, kitti, poses, world_frame_id, vehicle_frame_id, initial_time=None)
-        save_dynamic_transforms(bag, kitti, ground_truth, world_frame_id, ground_truth_frame_id, initial_time=None)
+        save_dynamic_transforms(writer, kitti, poses, world_frame_id, vehicle_frame_id, initial_time=None)
+        save_dynamic_transforms(writer, kitti, ground_truth, world_frame_id, ground_truth_frame_id, initial_time=None)
 
-        save_pose_msg(bag, kitti, poses, world_frame_id, vehicle_frame_id, vehicle_topic, initial_time=None)
+        save_pose_msg(writer, kitti, poses, world_frame_id, vehicle_frame_id, vehicle_topic, initial_time=None)
         #save_pose_msg(bag, kitti, ground_truth, world_frame_id, ground_truth_frame_id, ground_truth_topic, initial_time=None)
 
         
         if scanlabel_bool == 1:
             #print('a')
-            save_velo_data_with_label(bag, kitti, velo_frame_id, velo_topic)
+            save_velo_data_with_label(writer, kitti, velo_frame_id, velo_topic)
             #save_velo_data(bag, kitti, velo_frame_id, velo_topic)
 
         elif scanlabel_bool == 0:
             #print('b')
-            save_velo_data(bag, kitti, velo_frame_id, velo_topic)
+            save_velo_data(writer, kitti, velo_frame_id, velo_topic)
 
         # for camera in cameras:
         #     #print('c')
@@ -557,5 +646,7 @@ def run_semantickitti2bag():
 
     finally:
         print('Convertion is done')
-        print(bag)
-        bag.close()
+        # print(bag)
+        # bag.close()
+if __name__ == '__main__':
+    main()

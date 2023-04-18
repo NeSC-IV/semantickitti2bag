@@ -111,7 +111,7 @@ def save_velo_data_with_label(writer, kitti, velo_frame_id, velo_topic):
     print("Exporting Velodyne and Label data")
     topic_info = rosbag2_py._storage.TopicMetadata(
         name=velo_topic,
-        type='sensor_msgs/msgs/PointCloud2',
+        type='sensor_msgs/PointCloud2',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info)
@@ -168,7 +168,7 @@ def save_velo_data(writer, kitti, velo_frame_id, velo_topic):
     print("Exporting Velodyne data")
     topic_info = rosbag2_py._storage.TopicMetadata(
         name=velo_topic,
-        type='sensor_msgs/msgs/PointCloud2',
+        type='sensor_msgs/PointCloud2',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info)
@@ -298,7 +298,7 @@ def save_static_transforms(writer, transforms, kitti):
 
     topic_info = rosbag2_py._storage.TopicMetadata(
         name='/tf_static',
-        type='tf2_msgs/msgs/TFMessage',
+        type='tf2_msgs/TFMessage',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info)
@@ -329,7 +329,7 @@ def save_dynamic_transforms(writer, kitti, poses, master_frame_id, slave_frame_i
     print("Exporting time dependent transformations")
     topic_info = rosbag2_py._storage.TopicMetadata(
         name='/tf',
-        type='tf2_msgs/msgs/TFMessage',
+        type='tf2_msgs/TFMessage',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info)
@@ -414,14 +414,14 @@ def save_pose_msg(writer, kitti, poses, master_frame_id, slave_frame_id, topic, 
     # odom_pose存储位姿信息和速度信息
     topic_info = rosbag2_py._storage.TopicMetadata(
         name='/odom_pose',
-        type='nav_msgs/msgs/Odometry',
+        type='nav_msgs/Odometry',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info)
     # posestamp只存储位姿信息
     topic_info2 = rosbag2_py._storage.TopicMetadata(
         name=topic,
-        type='geometry_msgs/msgs/PoseStamped',
+        type='geometry_msgs/PoseStamped',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info2)

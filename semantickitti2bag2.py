@@ -411,12 +411,14 @@ def save_dynamic_transforms(writer, kitti, poses, master_frame_id, slave_frame_i
 
 def save_pose_msg(writer, kitti, poses, master_frame_id, slave_frame_id, topic, initial_time=None):
     print("Exporting pose msg")
+    # odom_pose存储位姿信息和速度信息
     topic_info = rosbag2_py._storage.TopicMetadata(
         name='/odom_pose',
         type='nav_msgs/msgs/Odometry',
         serialization_format='cdr') # 默认二进制序列化格式
     
     writer.create_topic(topic_info)
+    # posestamp只存储位姿信息
     topic_info2 = rosbag2_py._storage.TopicMetadata(
         name=topic,
         type='geometry_msgs/msgs/PoseStamped',
@@ -615,19 +617,19 @@ def main(args=None):
         ]
 
 
-        save_static_transforms(writer, transforms, kitti)
+        save_static_transforms(writer, transforms, kitti) # velodyne to vehicle/groundtruth
 
         #These poses are represented in world coordinate
-        poses = read_poses_file(os.path.join(kitti.data_path,'poses.txt'), calibration)
+        # poses = read_poses_file(os.path.join(kitti.data_path,'poses.txt'), calibration) # poses.txt由suma生成
         
         ground_truth_file_name = "{}.txt".format(sequence_number)
         ground_truth = read_poses_file(os.path.join(kitti.data_path, ground_truth_file_name), calibration)
 
-        save_dynamic_transforms(writer, kitti, poses, world_frame_id, vehicle_frame_id, initial_time=None)
-        save_dynamic_transforms(writer, kitti, ground_truth, world_frame_id, ground_truth_frame_id, initial_time=None)
+        # save_dynamic_transforms(writer, kitti, poses, world_frame_id, vehicle_frame_id, initial_time=None) # tf vehicle to map
+        save_dynamic_transforms(writer, kitti, ground_truth, world_frame_id, ground_truth_frame_id, initial_time=None) # tf ground_truth to map
 
-        save_pose_msg(writer, kitti, poses, world_frame_id, vehicle_frame_id, vehicle_topic, initial_time=None)
-        #save_pose_msg(bag, kitti, ground_truth, world_frame_id, ground_truth_frame_id, ground_truth_topic, initial_time=None)
+        # save_pose_msg(writer, kitti, poses, world_frame_id, vehicle_frame_id, vehicle_topic, initial_time=None)
+        save_pose_msg(writer, kitti, ground_truth, world_frame_id, ground_truth_frame_id, ground_truth_topic, initial_time=None) # posestamped: ground_truth to map, odom: ground_truth to map
 
         
         if scanlabel_bool == 1:

@@ -154,8 +154,8 @@ def save_velo_data_with_label(writer, kitti, velo_frame_id, velo_topic):
                 PointField(name='y',  offset=4, datatype=PointField.FLOAT32, count = 1),
                 PointField(name='z',  offset=8, datatype=PointField.FLOAT32, count = 1),
                 PointField(name='intensity',  offset=12, datatype=PointField.FLOAT32, count = 1),
-                PointField(name='rgb',  offset=16, datatype=PointField.UINT32, count = 1),
-                PointField(name='label',  offset=20, datatype=PointField.UINT16, count = 1)]
+                PointField(name='rgb',  offset=16, datatype=PointField.FLOAT32, count = 1),
+                PointField(name='label',  offset=20, datatype=PointField.FLOAT32, count = 1)]
 
         pcl_msg = pcl2.create_cloud(header, fields, scan)
         writer.write(
